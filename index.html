@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sheet Mail Tool</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --surface: #ffffff;
+      --text: #1c1e21;
+      --text-muted: #606770;
+      --line: #dddfe2;
+      --blue: #1877f2;
+      --blue-hover: #166fe5;
+      --green: #2b8a3e;
+      --green-light: #d3f9d8;
+      --green-dark: #236f32;
+      --orange: #fd7e14;
+      --orange-light: #ffe8cc;
+      --orange-dark: #d9480f;
+      --red: #fa3e3e;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      --font: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.5;
+      padding: 24px 0 48px;
+    }
+
+    .app {
+      width: min(1200px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    /* Top Bar */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface);
+      padding: 16px 24px;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+
+    .logo-section {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-section svg {
+      width: 28px;
+      height: 28px;
+      color: var(--blue);
+    }
+
+    .logo-section h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.5px;
+    }
+
+    .btn-toggle-config {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #e4e6eb;
+      color: var(--text);
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-toggle-config:hover {
+      background: #d8dadf;
+    }
+
+    .btn-toggle-config svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Collapsible Config Panel */
+    .config-panel {
+      background: var(--surface);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .config-panel.show {
+      display: flex;
+    }
+
+    .config-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    @media (max-width: 900px) {
+      .config-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .config-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .config-field label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .config-field input {
+      height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 12px;
+      font-size: 14px;
+      outline: 0;
+      width: 100%;
+      background: #f7f8fa;
+    }
+
+    .config-field input:focus {
+      border-color: var(--blue);
+      background: #fff;
+    }
+
+    .btn-submit-config {
+      height: 40px;
+      background: var(--blue);
+      color: #fff;
+      border: 0;
+      border-radius: 6px;
+      padding: 0 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      align-self: flex-end;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.15s ease;
+    }
+
+    .btn-submit-config:hover {
+      background: var(--blue-hover);
+    }
+
+    /* Filter Bar */
+    .filter-bar {
+      background: var(--surface);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1.5fr auto;
+      gap: 16px;
+      align-items: end;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 800px) {
+      .filter-bar {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .filter-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .filter-field label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .filter-field select,
+    .filter-field input {
+      height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 12px;
+      font-size: 14px;
+      background: #f7f8fa;
+      outline: 0;
+      width: 100%;
+      transition: all 0.15s ease;
+    }
+
+    .filter-field select:focus,
+    .filter-field input:focus {
+      border-color: var(--blue);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.1);
+    }
+
+    /* Stats Badge Card */
+    .stats-card {
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      min-width: 180px;
+      height: 72px;
+    }
+
+    .stats-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .stats-count {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .stats-indicators {
+      display: flex;
+      gap: 12px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .indicator-done {
+      color: var(--green);
+    }
+
+    .indicator-doing {
+      color: var(--orange);
+    }
+
+    /* Action Buttons Bar */
+    .action-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .btn-action {
+      height: 42px;
+      border: 0;
+      border-radius: 8px;
+      padding: 0 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+      transition: all 0.15s ease;
+      box-shadow: var(--card-shadow);
+    }
+
+    .btn-refresh {
+      background: var(--blue);
+    }
+
+    .btn-refresh:hover {
+      background: var(--blue-hover);
+    }
+
+    .btn-webmail {
+      background: var(--green);
+    }
+
+    .btn-webmail:hover {
+      background: var(--green-dark);
+    }
+
+    .btn-action svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Status Notifications */
+    .status-msg {
+      background: #e8f4fd;
+      border-left: 4px solid var(--blue);
+      color: #0b58a2;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .status-msg.show {
+      display: block;
+    }
+
+    .status-msg[data-type="success"] {
+      background: #eafaf1;
+      border-left-color: var(--green);
+      color: var(--green-dark);
+    }
+
+    .status-msg[data-type="warn"] {
+      background: #fff9db;
+      border-left-color: var(--orange);
+      color: var(--orange-dark);
+    }
+
+    .status-msg[data-type="error"] {
+      background: #fdf2f2;
+      border-left-color: var(--red);
+      color: var(--red);
+    }
+
+    /* Card Grid */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 20px;
+    }
+
+    /* Card Styling */
+    .card {
+      background: var(--surface);
+      border-radius: 12px;
+      border: 2px solid var(--line);
+      box-shadow: var(--card-shadow);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .card.doing {
+      border-color: var(--orange-light);
+      background: #fffdfa;
+    }
+
+    .card.doing:hover {
+      border-color: #ffd8a8;
+      box-shadow: 0 4px 16px rgba(253, 126, 20, 0.08);
+      transform: translateY(-2px);
+    }
+
+    .card.done {
+      border-color: var(--green-light);
+      background: #f7fcf9;
+    }
+
+    .card.done:hover {
+      border-color: #b2f2bb;
+      box-shadow: 0 4px 16px rgba(43, 138, 62, 0.06);
+      transform: translateY(-2px);
+    }
+
+    /* Card Header */
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px dashed var(--line);
+      padding-bottom: 10px;
+    }
+
+    .card-info {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-index {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .card-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge-doing {
+      background: var(--orange-light);
+      color: var(--orange-dark);
+    }
+
+    .badge-done {
+      background: var(--green-light);
+      color: var(--green-dark);
+    }
+
+    /* Field list in Card */
+    .card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .card-field-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .card-field-row {
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface);
+      overflow: hidden;
+      height: 38px;
+      padding-left: 10px;
+      transition: border-color 0.15s ease;
+    }
+
+    .card-field-row:focus-within {
+      border-color: var(--blue);
+    }
+
+    .card-field-value {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      user-select: all;
+    }
+
+    input.card-field-value {
+      border: 0;
+      background: transparent;
+      outline: none;
+      font-family: inherit;
+      font-size: inherit;
+      font-weight: inherit;
+      color: inherit;
+      width: 100%;
+    }
+
+    .btn-copy {
+      height: 100%;
+      width: 44px;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      transition: color 0.15s ease, background-color 0.15s ease;
+    }
+
+    .btn-copy:hover {
+      color: var(--blue);
+      background-color: #f0f2f5;
+    }
+
+    .btn-copy svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    /* Card Actions */
+    .card-footer {
+      display: flex;
+      gap: 8px;
+      margin-top: auto;
+      padding-top: 6px;
+    }
+
+    .card-btn {
+      flex: 1;
+      height: 38px;
+      border: 0;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: #fff;
+      transition: background-color 0.15s ease, transform 0.1s ease;
+    }
+
+    .card-btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-create-recovery {
+      background: var(--blue);
+    }
+
+    .btn-create-recovery:hover {
+      background: var(--blue-hover);
+    }
+
+    .btn-stop-otp {
+      background: var(--orange);
+    }
+
+    .btn-stop-otp:hover {
+      background: var(--orange-dark);
+    }
+
+    .btn-save-complete {
+      background: var(--green);
+    }
+
+    .btn-save-complete:hover {
+      background: var(--green-dark);
+    }
+
+    .card-btn svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    /* Empty state */
+    .empty-state {
+      background: var(--surface);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      padding: 48px;
+      text-align: center;
+      color: var(--text-muted);
+      font-weight: 500;
+      grid-column: 1 / -1;
+    }
+
+    .empty-state svg {
+      width: 48px;
+      height: 48px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <!-- Top Header Bar -->
+    <header class="topbar">
+      <div class="logo-section">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <h1>Sheet Mail Tool</h1>
+      </div>
+      <button id="toggleConfig" class="btn-toggle-config" type="button">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        Đổi link Google Sheet
+      </button>
+    </header>
+
+    <!-- Collapsible Sheet Link Settings Panel -->
+    <section id="sheetConfigPanel" class="config-panel">
+      <h2 class="config-title">Cấu hình liên kết Google Sheet & Apps Script</h2>
+      <div class="config-grid">
+        <div class="config-field">
+          <label for="sheetUrl">Link Google Sheet:</label>
+          <input id="sheetUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/...">
+        </div>
+        <div class="config-field">
+          <label for="scriptUrl">Apps Script Web App URL:</label>
+          <input id="scriptUrl" type="url" placeholder="https://script.google.com/macros/s/..." value="https://script.google.com/macros/s/AKfycbzmKfSCDS1nbthCF0ktKGFPaeWYV2hasgpKqZCJBQ5Jx6z9MFAL72iI3gYMurkLaKwYdw/exec">
+        </div>
+        <div class="config-field">
+          <label for="webmailUrl">Web mail URL:</label>
+          <input id="webmailUrl" type="url" placeholder="https://..." value="https://mail.kp.vn">
+        </div>
+        <button id="loadSheet" class="btn-submit-config" type="button">
+          Xác nhận
+        </button>
+      </div>
+    </section>
+
+    <!-- Filter Bar -->
+    <section class="filter-bar" aria-label="Bộ lọc dữ liệu">
+      <div class="filter-field">
+        <label for="filterName">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:14px;height:14px;color:var(--blue)">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          Lọc theo người:
+        </label>
+        <select id="filterName">
+          <option value="all">Tất cả mọi người</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label for="filterStatus">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:14px;height:14px;color:var(--orange)">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Trạng thái:
+        </label>
+        <select id="filterStatus">
+          <option value="all">Tất cả</option>
+          <option value="doing">⏳ Đang làm</option>
+          <option value="done">✅ Đã xong</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label for="searchQuery">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:14px;height:14px;color:var(--blue)">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          Tìm kiếm:
+        </label>
+        <input id="searchQuery" type="search" placeholder="Tìm theo email, tên...">
+      </div>
+
+      <!-- Stats Box -->
+      <div class="stats-card">
+        <span class="stats-title">📋 Hiển thị: <span id="displayedCount" class="stats-count">0 / 0</span></span>
+        <div class="stats-indicators">
+          <span class="indicator-done">✅ <span id="doneCount">0</span></span>
+          <span class="indicator-doing">⏳ <span id="doingCount">0</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Action Buttons Bar -->
+    <div class="action-bar">
+      <button id="refreshBtn" class="btn-action btn-refresh" type="button">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M21 8h-5V3" />
+        </svg>
+        Refresh
+      </button>
+      <button id="webmailBtn" class="btn-action btn-webmail" type="button">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9-9c1.657 0 3 4.03 3 9s-1.343 9-3 9m0-18c-1.657 0-3 4.03-3 9s1.343 9 3 9m-9-9h18" />
+        </svg>
+        Web mail KP
+      </button>
+    </div>
+
+    <!-- Status Messages -->
+    <div id="status" class="status-msg" role="status" aria-live="polite"></div>
+
+    <!-- Cards Grid -->
+    <section id="cardsGrid" class="cards-grid">
+      <div class="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+        </svg>
+        <p>Vui lòng click "Đổi link Google Sheet" để cấu hình liên kết và tải dữ liệu.</p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js?v=20260628"></script>
+</body>
+</html>
+
