@@ -145,13 +145,11 @@ test('maps Google Visualization table data to account rows', () => {
   ]);
 });
 
-test('rotates recovery domains every 500 source rows', () => {
-  assert.equal(getRecoveryDomain(0), 'fivermail.com');
-  assert.equal(getRecoveryDomain(499), 'fivermail.com');
-  assert.equal(getRecoveryDomain(500), 'tupmail.com');
-  assert.equal(getRecoveryDomain(1000), 'givmai.com');
-  assert.equal(getRecoveryDomain(1500), 'gimpmail.com');
-  assert.equal(getRecoveryDomain(2000), 'fivermail.com');
+test('randomly selects a recovery domain from the available list', () => {
+  assert.equal(getRecoveryDomain(0, () => 0.1), 'clowmail.com');
+  assert.equal(getRecoveryDomain(0, () => 0.3), 'gimpmail.com');
+  assert.equal(getRecoveryDomain(0, () => 0.6), 'givmail.com');
+  assert.equal(getRecoveryDomain(0, () => 0.9), 'tupmail.com');
 });
 
 test('moves selection left and right with wraparound', () => {
@@ -241,14 +239,14 @@ test('gets the row selected after navigation for auto-copy', () => {
   assert.equal(getAdjacentRow([], 0, 1), null);
 });
 
-test('creates recovery email from username, random number, and rotated domain', () => {
+test('creates recovery email from username, random number, and random domain', () => {
   const recoveryEmail = createRecoveryEmail('emendia@hotmail.com', 500, () => 0.1234);
 
-  assert.equal(recoveryEmail, 'emendia2110@tupmail.com');
+  assert.equal(recoveryEmail, 'emendia2110@clowmail.com');
 });
 
 test('gets username from recovery email', () => {
-  assert.equal(getRecoveryUsername('negustophengels8972@fivermail.com'), 'negustophengels8972');
+  assert.equal(getRecoveryUsername('negustophengels8972@clowmail.com'), 'negustophengels8972');
   assert.equal(getRecoveryUsername(''), '');
 });
 
@@ -265,9 +263,9 @@ test('keeps generated recovery email stable on the row', () => {
     return value;
   };
 
-  assert.equal(ensureRecoveryEmail(row, random), 'alpha1900@fivermail.com');
-  assert.equal(ensureRecoveryEmail(row, random), 'alpha1900@fivermail.com');
-  assert.equal(row.recoveryEmail, 'alpha1900@fivermail.com');
+  assert.equal(ensureRecoveryEmail(row, random), 'alpha1900@tupmail.com');
+  assert.equal(ensureRecoveryEmail(row, random), 'alpha1900@tupmail.com');
+  assert.equal(row.recoveryEmail, 'alpha1900@tupmail.com');
 });
 
 test('adds recovery email only when the row is missing one', () => {
@@ -283,10 +281,10 @@ test('adds recovery email only when the row is missing one', () => {
   };
 
   assert.deepEqual(addRecoveryEmailIfMissing(missingRecovery, () => 0.2), {
-    recoveryEmail: 'bravo2800@tupmail.com',
+    recoveryEmail: 'bravo2800@clowmail.com',
     added: true
   });
-  assert.equal(missingRecovery.recoveryEmail, 'bravo2800@tupmail.com');
+  assert.equal(missingRecovery.recoveryEmail, 'bravo2800@clowmail.com');
   assert.deepEqual(addRecoveryEmailIfMissing(existingRecovery, () => 0.8), {
     recoveryEmail: 'already@custom.com',
     added: false
@@ -306,14 +304,14 @@ test('builds sheet update payload with the real spreadsheet row number', () => {
     spreadsheetId: '',
     gid: '0',
     rowNumber: 9,
-    recoveryEmail: 'delta3700@fivermail.com'
+    recoveryEmail: 'delta3700@gimpmail.com'
   });
 });
 
 test('builds sheet update payload with spreadsheet ID and gid from sheet url', () => {
   const row = {
     email: 'delta@hotmail.com',
-    recoveryEmail: 'delta3700@fivermail.com',
+    recoveryEmail: 'delta3700@gimpmail.com',
     sourceIndex: 7
   };
 
@@ -323,7 +321,7 @@ test('builds sheet update payload with spreadsheet ID and gid from sheet url', (
       spreadsheetId: 'abc123',
       gid: '987',
       rowNumber: 9,
-      recoveryEmail: 'delta3700@fivermail.com'
+      recoveryEmail: 'delta3700@gimpmail.com'
     }
   );
 });
@@ -393,12 +391,12 @@ test('shows confirmation message before leaving the current row', () => {
 
 test('knows when current row must be written before leaving', () => {
   assert.equal(mustWriteRecoveryBeforeLeaving({
-    recoveryEmail: 'alpha1900@fivermail.com',
+    recoveryEmail: 'alpha1900@clowmail.com',
     recoveryEmailGenerated: true,
     recoveryEmailSynced: false
   }), true);
   assert.equal(mustWriteRecoveryBeforeLeaving({
-    recoveryEmail: 'alpha1900@fivermail.com',
+    recoveryEmail: 'alpha1900@clowmail.com',
     recoveryEmailGenerated: true,
     recoveryEmailSynced: true
   }), false);

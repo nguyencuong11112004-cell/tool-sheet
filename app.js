@@ -1,8 +1,8 @@
 const RECOVERY_DOMAINS = [
-  'fivermail.com',
-  'tupmail.com',
-  'givmai.com',
-  'gimpmail.com'
+  'clowmail.com',
+  'gimpmail.com',
+  'givmail.com',
+  'tupmail.com'
 ];
 
 const HEADER_ALIASES = {
@@ -168,9 +168,8 @@ export function mapGvizTable(table) {
   return mapRows([headers, ...bodyRows]);
 }
 
-export function getRecoveryDomain(sourceIndex) {
-  const safeIndex = Math.max(0, Number(sourceIndex) || 0);
-  const domainIndex = Math.floor(safeIndex / 500) % RECOVERY_DOMAINS.length;
+export function getRecoveryDomain(sourceIndex, random = Math.random) {
+  const domainIndex = Math.floor(random() * RECOVERY_DOMAINS.length);
 
   return RECOVERY_DOMAINS[domainIndex];
 }
@@ -179,7 +178,7 @@ export function createRecoveryEmail(email, sourceIndex, random = Math.random) {
   const username = String(email ?? '').split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '');
   const suffix = Math.floor(random() * 9000) + 1000;
 
-  return `${username || 'mail'}${suffix}@${getRecoveryDomain(sourceIndex)}`;
+  return `${username || 'mail'}${suffix}@${getRecoveryDomain(sourceIndex, random)}`;
 }
 
 export function addRecoveryEmailIfMissing(row, random = Math.random) {
