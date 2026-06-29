@@ -15,7 +15,7 @@ The tool runs from local static files. It accepts a public Google Sheet URL and 
 - Search rows by the name column, case-insensitive and accent-insensitive.
 - Show the currently selected row with email, password, and recovery email.
 - If recovery email is empty, generate one from the email username plus a random number and one of these domains: `clowmail.com`, `gimpmail.com`, `givmail.com`, `tupmail.com`.
-- Select one of these domains randomly when generating the recovery email.
+- Use one domain per 200 source rows, then move to the next domain and loop after the fourth domain.
 - Provide copy buttons for email, password, and recovery email.
 - Provide a next-row button to move through matching search results.
 
