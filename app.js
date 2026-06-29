@@ -608,8 +608,11 @@ function initApp() {
           btnChangeMail.disabled = true;
           const originalText = btnSave.innerHTML;
           btnSave.innerHTML = 'Đang lưu...';
+          
+          const currentIndex = filteredRows.indexOf(row);
+          const nextRow = (currentIndex !== -1) ? getAdjacentRow(filteredRows, currentIndex, 1) : null;
+
           try {
-            await copyText(row.recoveryEmail, null);
             const scriptUrl = elements.scriptUrl.value.trim();
             const sheetUrl = elements.sheetUrl.value.trim();
             if (scriptUrl) {
@@ -637,6 +640,11 @@ function initApp() {
             } else {
               markRowDone(row);
               showStatus(`Đã đánh dấu hoàn thành cho ${row.name} (chưa cấu hình Web App URL để lưu).`, 'warn');
+            }
+
+            // Copy Hotmail email of the next account to clipboard
+            if (nextRow && nextRow !== row) {
+              await copyText(nextRow.email, null);
             }
           } catch (err) {
             showStatus(`Lỗi khi lưu: ${err.message}`, 'error');
