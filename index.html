@@ -545,6 +545,33 @@
       background-color: #f0f2f5;
     }
 
+    .btn-fetch-otp {
+      height: 100%;
+      padding: 0 12px;
+      background: #e8f4fd;
+      border: 0;
+      border-left: 1px solid var(--line);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+    }
+
+    .btn-fetch-otp:hover {
+      background: #d8ecfc;
+      color: var(--blue-hover);
+    }
+
+    .btn-fetch-otp:disabled {
+      background: #f0f2f5;
+      color: var(--text-muted);
+      cursor: not-allowed;
+    }
+
     .btn-copy svg {
       width: 15px;
       height: 15px;
@@ -657,7 +684,7 @@
         </div>
         <div class="config-field">
           <label for="scriptUrl">Apps Script Web App URL:</label>
-          <input id="scriptUrl" type="url" placeholder="https://script.google.com/macros/s/..." value="https://script.google.com/macros/s/AKfycbzmKfSCDS1nbthCF0ktKGFPaeWYV2hasgpKqZCJBQ5Jx6z9MFAL72iI3gYMurkLaKwYdw/exec">
+          <input id="scriptUrl" type="url" placeholder="https://script.google.com/macros/s/..." value="https://script.google.com/macros/s/AKfycbyBZ6ru8PT342mT0UrtDgOOyVrl03hrjLcYSuxB5PBiZ36r2QOUkH8Awo17R4is4DEUXg/exec">
         </div>
         <div class="config-field">
           <label for="webmailUrl">Web mail URL:</label>

@@ -10,6 +10,48 @@ const RECOVERY_HEADER_ALIASES = [
 function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents || '{}');
+
+    // Handle proxy request to getNada to bypass CORS in the browser
+    if (payload.action === 'get_otp') {
+      const email = String(payload.email || '').trim();
+      if (!email) {
+        throw new Error('Missing email for get_otp action.');
+      }
+
+      const response = UrlFetchApp.fetch('https://inboxes.com/api/v2/inbox/' + email, {
+        muteHttpExceptions: true
+      });
+
+      if (response.getResponseCode() !== 200) {
+        throw new Error('Inboxes inbox request failed with status: ' + response.getResponseCode());
+      }
+
+      const data = JSON.parse(response.getContentText());
+      if (data.msgs && data.msgs.length > 0) {
+        const latestMsg = data.msgs[0];
+        const msgResponse = UrlFetchApp.fetch('https://inboxes.com/api/v2/message/' + latestMsg.uid, {
+          muteHttpExceptions: true
+        });
+
+        if (msgResponse.getResponseCode() !== 200) {
+          throw new Error('Inboxes message content request failed with status: ' + msgResponse.getResponseCode());
+        }
+
+        const msgData = JSON.parse(msgResponse.getContentText());
+        return jsonResponse({
+          ok: true,
+          sender: latestMsg.f || msgData.from || '',
+          subject: latestMsg.s || msgData.subject || '',
+          html: msgData.html || msgData.text || ''
+        });
+      } else {
+        return jsonResponse({
+          ok: true,
+          msgs: []
+        });
+      }
+    }
+
     const rowNumber = Number(payload.rowNumber);
     const recoveryEmail = String(payload.recoveryEmail || '').trim();
     const spreadsheetId = payload.spreadsheetId;
@@ -113,4 +155,10 @@ function jsonResponse(data) {
   return ContentService
     .createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Hàm chạy thủ công một lần để kích hoạt quyền gọi API ngoài (UrlFetchApp.fetch)
+function authorize() {
+  UrlFetchApp.fetch("https://inboxes.com/api/v2/domain");
+  Logger.log("Cấp quyền thành công!");
 }

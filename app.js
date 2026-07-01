@@ -215,6 +215,175 @@ export function getRecoveryUsername(recoveryEmail) {
   return String(recoveryEmail ?? '').split('@')[0];
 }
 
+export function extractOtpCode(html) {
+  if (!html) return null;
+  // Strip HTML tags and normalize whitespace
+  const text = html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  // Try to find a 6 to 8-digit code with keywords nearby
+  const keywords = ['ma', 'code', 'security', 'verify', 'xac nhan', 'xac minh', 'bao mat', 'otp'];
+  
+  // Find all 6 to 8 digit numbers
+  const numbers = text.match(/\b\d{6,8}\b/g) || [];
+  
+  if (numbers.length === 1) {
+    return numbers[0];
+  }
+  
+  const normalizedText = normalizeText(text);
+  for (const num of numbers) {
+    const numPos = text.indexOf(num);
+    if (numPos !== -1) {
+      const surroundingText = normalizedText.slice(Math.max(0, numPos - 100), numPos + 100);
+      if (keywords.some(kw => surroundingText.includes(kw))) {
+        return num;
+      }
+    }
+  }
+  
+  return numbers[0] || null;
+}
+
+async function fetchGetnadaDirect(email) {
+  const res = await fetch(`https://inboxes.com/api/v2/inbox/${email}`);
+  if (!res.ok) throw new Error("Direct inbox fetch failed");
+  const data = await res.json();
+  if (data.msgs && data.msgs.length > 0) {
+    const latestMsg = data.msgs[0];
+    const msgRes = await fetch(`https://inboxes.com/api/v2/message/${latestMsg.uid}`);
+    if (!msgRes.ok) throw new Error("Direct message fetch failed");
+    const msgData = await msgRes.json();
+    return {
+      code: extractOtpCode(msgData.html || msgData.text),
+      sender: latestMsg.f || msgData.from,
+      subject: latestMsg.s || msgData.subject
+    };
+  }
+  return null;
+}
+
+async function fetchGetnadaViaAppsScript(scriptUrl, email) {
+  const response = await fetch(scriptUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8'
+    },
+    body: JSON.stringify({
+      action: 'get_otp',
+      email: email
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Apps Script trả về mã lỗi ${response.status}`);
+  }
+
+  const result = await response.json();
+  if (!result.ok) {
+    if (result.error === 'Invalid rowNumber.') {
+      throw new Error('Vui lòng Deploy phiên bản mới (New Deployment) cho Google Apps Script.');
+    }
+    throw new Error(result.error || 'Lỗi Apps Script');
+  }
+
+  if (result.html) {
+    return {
+      code: extractOtpCode(result.html),
+      sender: result.sender,
+      subject: result.subject
+    };
+  }
+  return null;
+}
+
+async function fetchGetnadaViaAllOrigins(email) {
+  const inboxUrl = encodeURIComponent(`https://inboxes.com/api/v2/inbox/${email}`);
+  const res = await fetch(`https://api.allorigins.win/get?url=${inboxUrl}`);
+  if (!res.ok) throw new Error("Kết nối AllOrigins thất bại");
+  const wrapper = await res.json();
+  
+  let data;
+  try {
+    data = JSON.parse(wrapper.contents);
+  } catch (e) {
+    if (String(wrapper.contents || '').includes('cloudflare') || String(wrapper.contents || '').includes('<html')) {
+      throw new Error("Bị chặn bởi bảo mật Cloudflare của inboxes.com. Hãy dùng Apps Script Proxy.");
+    }
+    throw new Error("Không thể phân tích dữ liệu hòm thư.");
+  }
+  
+  if (data.msgs && data.msgs.length > 0) {
+    const latestMsg = data.msgs[0];
+    const msgUrl = encodeURIComponent(`https://inboxes.com/api/v2/message/${latestMsg.uid}`);
+    const msgRes = await fetch(`https://api.allorigins.win/get?url=${msgUrl}`);
+    if (!msgRes.ok) throw new Error("AllOrigins tải nội dung thư thất bại");
+    const msgWrapper = await msgRes.json();
+    
+    let msgData;
+    try {
+      msgData = JSON.parse(msgWrapper.contents);
+    } catch (e) {
+      throw new Error("Không thể phân tích chi tiết thư.");
+    }
+    
+    return {
+      code: extractOtpCode(msgData.html || msgData.text),
+      sender: latestMsg.f || msgData.from,
+      subject: latestMsg.s || msgData.subject
+    };
+  }
+  return null;
+}
+
+export async function fetchOtpFromApi(email, scriptUrl = '') {
+  const errors = [];
+
+  // Level 1: Direct Fetch
+  try {
+    const data = await fetchGetnadaDirect(email);
+    // Nếu kết nối thành công (dù có mail hay trống), trả về kết quả ngay
+    return data;
+  } catch (err) {
+    console.warn("Direct fetch failed:", err);
+    errors.push("Kết nối trực tiếp bị CORS chặn");
+  }
+
+  // Level 2: Apps Script proxy
+  if (scriptUrl) {
+    try {
+      const data = await fetchGetnadaViaAppsScript(scriptUrl, email);
+      // Nếu proxy chạy thành công (dù có mail hay trống), trả về kết quả ngay
+      return data;
+    } catch (err) {
+      console.warn("Apps Script proxy failed:", err);
+      errors.push(`Apps Script Proxy: ${err.message}`);
+      if (err.message.includes('Deploy phiên bản mới')) {
+        throw err;
+      }
+    }
+  } else {
+    errors.push("Apps Script Proxy: URL trống");
+  }
+
+  // Level 3: AllOrigins proxy
+  try {
+    const data = await fetchGetnadaViaAllOrigins(email);
+    return data;
+  } catch (err) {
+    console.warn("AllOrigins proxy failed:", err);
+    errors.push(`AllOrigins Proxy: ${err.message}`);
+  }
+
+  // Nếu tất cả các phương thức kết nối đều bị lỗi mạng/CORS
+  const errorMsg = errors.join(' | ');
+  throw new Error(errorMsg || "Không kết nối được hòm thư.");
+}
+
 export function shouldWriteRecoveryEmail(row) {
   return Boolean(row?.recoveryEmail && row.recoveryEmailGenerated && !row.recoveryEmailSynced);
 }
@@ -502,6 +671,109 @@ function initApp() {
     return field;
   };
 
+  const createOtpField = (row) => {
+    const field = document.createElement('div');
+    field.className = 'card-field';
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'card-field-label';
+    labelSpan.textContent = '🔑 Mã OTP (Getnada)';
+    field.appendChild(labelSpan);
+
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'card-field-row';
+
+    const valueEl = document.createElement('input');
+    valueEl.className = 'card-field-value';
+    valueEl.style.fontWeight = '700';
+    valueEl.style.color = 'var(--blue)';
+    valueEl.readOnly = true;
+    valueEl.placeholder = 'Bấm nút "Lấy mã"';
+    rowDiv.appendChild(valueEl);
+
+    const getOtpBtn = document.createElement('button');
+    getOtpBtn.className = 'btn-fetch-otp';
+    getOtpBtn.type = 'button';
+    getOtpBtn.title = 'Lấy mã OTP';
+    getOtpBtn.textContent = 'Lấy mã';
+    rowDiv.appendChild(getOtpBtn);
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn-copy';
+    copyBtn.type = 'button';
+    copyBtn.title = 'Copy';
+    copyBtn.style.display = 'none';
+    copyBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+      </svg>
+    `;
+    rowDiv.appendChild(copyBtn);
+
+    const infoDiv = document.createElement('div');
+    infoDiv.style.fontSize = '11px';
+    infoDiv.style.color = 'var(--text-muted)';
+    infoDiv.style.marginTop = '4px';
+    infoDiv.style.minHeight = '16px';
+    field.appendChild(rowDiv);
+    field.appendChild(infoDiv);
+
+    getOtpBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!row.recoveryEmail) {
+        showStatus('Chưa có email khôi phục!', 'warn');
+        return;
+      }
+
+      const scriptUrl = elements.scriptUrl.value.trim();
+      console.log("Current Apps Script URL in use:", scriptUrl);
+
+      if (!scriptUrl) {
+        infoDiv.textContent = 'Lỗi: Chưa cấu hình Apps Script Web App URL.';
+        infoDiv.style.color = 'var(--red)';
+        showStatus('Vui lòng click "Đổi link Google Sheet" để điền Apps Script Web App URL.', 'error');
+        getOtpBtn.textContent = 'Lấy mã';
+        return;
+      }
+
+      getOtpBtn.disabled = true;
+      getOtpBtn.textContent = 'Đang lấy...';
+      infoDiv.textContent = 'Đang kiểm tra hòm thư...';
+      infoDiv.style.color = 'var(--text-muted)';
+      valueEl.value = '';
+      copyBtn.style.display = 'none';
+
+      try {
+        const otpData = await fetchOtpFromApi(row.recoveryEmail, scriptUrl);
+        if (otpData && otpData.code) {
+          valueEl.value = otpData.code;
+          copyBtn.style.display = 'flex';
+          infoDiv.innerHTML = `<span style="color:var(--green); font-weight: 500;">✓ Thư từ: ${escapeHtml(otpData.sender || 'Unknown')}</span>`;
+          await copyText(otpData.code, copyBtn);
+          showStatus(`Đã lấy và copy mã OTP: ${otpData.code}`, 'success');
+        } else {
+          infoDiv.textContent = 'Chưa có thư mới. Hãy gửi lại mã hoặc thử lại.';
+          infoDiv.style.color = 'var(--orange-dark)';
+          showStatus('Không tìm thấy email xác nhận mới trong hòm thư.', 'warn');
+        }
+      } catch (err) {
+        infoDiv.textContent = 'Không kết nối được hòm thư.';
+        infoDiv.style.color = 'var(--red)';
+        showStatus(`Không lấy được mã: ${err.message}`, 'error');
+      } finally {
+        getOtpBtn.disabled = false;
+        getOtpBtn.textContent = 'Lấy lại';
+      }
+    });
+
+    copyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      copyText(valueEl.value, copyBtn);
+    });
+
+    return field;
+  };
+
   const renderCards = () => {
     elements.cardsGrid.innerHTML = '';
 
@@ -568,6 +840,10 @@ function initApp() {
           }
         );
         bodyDiv.appendChild(usernameField);
+
+        if (!done) {
+          bodyDiv.appendChild(createOtpField(row));
+        }
       }
       card.appendChild(bodyDiv);
 

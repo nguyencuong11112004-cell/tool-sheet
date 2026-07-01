@@ -27,7 +27,8 @@ import {
   mustWriteRecoveryBeforeLeaving,
   parseCsv,
   toGvizUrl,
-  toCsvUrl
+  toCsvUrl,
+  extractOtpCode
 } from '../app.js';
 
 test('converts a public Google Sheet edit link to csv export url', () => {
@@ -406,3 +407,34 @@ test('knows when current row must be written before leaving', () => {
     recoveryEmail: 'existing@custom.com'
   }), false);
 });
+
+test('extracts OTP code correctly from Vietnamese email HTML', () => {
+  const html = `
+    <html>
+      <body>
+        <div class="content">
+          <p>Xin chào Cường,</p>
+          <p>Mã bảo mật tài khoản Microsoft của bạn là: <strong>837492</strong></p>
+          <p>Nếu bạn không yêu cầu mã này, vui lòng bỏ qua.</p>
+        </div>
+      </body>
+    </html>
+  `;
+  assert.equal(extractOtpCode(html), '837492');
+});
+
+test('extracts OTP code correctly from English email HTML with multiple numbers', () => {
+  const html = `
+    <html>
+      <head>
+        <style>body { font-size: 14px; width: 600px; }</style>
+      </head>
+      <body>
+        <p>Your security verification code is: 1048576</p>
+        <p>Zip code: 90210. Phone: 123-456-7890</p>
+      </body>
+    </html>
+  `;
+  assert.equal(extractOtpCode(html), '1048576');
+});
+
