@@ -6,6 +6,7 @@ const RECOVERY_DOMAINS = [
 ];
 
 const OTP_POLL_INTERVAL_MS = 5000;
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx4F8oP-85av3budf-LUiNdBo_0nr957Jv8LO-9UJ9Sta1gV4j4t6P0fgb713bd2deTtg/exec';
 
 const HEADER_ALIASES = {
   name: ['ten', 'name'],
@@ -1146,11 +1147,11 @@ function initApp() {
 
   // Load configuration from LocalStorage
   const savedSheetUrl = localStorage.getItem('sheetUrl');
-  const savedScriptUrl = localStorage.getItem('scriptUrl');
   const savedWebmailUrl = localStorage.getItem('webmailUrl');
 
   if (savedSheetUrl) elements.sheetUrl.value = savedSheetUrl;
-  if (savedScriptUrl) elements.scriptUrl.value = savedScriptUrl;
+  elements.scriptUrl.value = DEFAULT_SCRIPT_URL;
+  localStorage.setItem('scriptUrl', DEFAULT_SCRIPT_URL);
   if (savedWebmailUrl) elements.webmailUrl.value = savedWebmailUrl;
 
   // Load Sheet click handler
