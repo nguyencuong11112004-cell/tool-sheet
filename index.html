@@ -195,13 +195,19 @@
       box-shadow: var(--shadow);
       padding: 20px;
       display: grid;
-      grid-template-columns: 1.2fr 1fr 1.5fr auto;
+      grid-template-columns: 1.2fr 1fr 1fr 1.5fr auto;
       gap: 16px;
       align-items: end;
       margin-bottom: 16px;
     }
 
-    @media (max-width: 800px) {
+    @media (max-width: 900px) {
+      .filter-bar {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 600px) {
       .filter-bar {
         grid-template-columns: 1fr;
       }
@@ -721,6 +727,21 @@
           <option value="all">Tất cả</option>
           <option value="doing">⏳ Đang làm</option>
           <option value="done">✅ Đã xong</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label for="filterLimit">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:14px;height:14px;color:var(--blue)">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7" />
+          </svg>
+          Số lượng hiển thị:
+        </label>
+        <select id="filterLimit">
+          <option value="1">1 Acc</option>
+          <option value="2">2 Accs</option>
+          <option value="3" selected>3 Accs</option>
+          <option value="6">6 Accs</option>
+          <option value="all">Tất cả</option>
         </select>
       </div>
       <div class="filter-field">
