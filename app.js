@@ -5,6 +5,8 @@ const RECOVERY_DOMAINS = [
   'tupmail.com'
 ];
 
+const OTP_POLL_INTERVAL_MS = 5000;
+
 const HEADER_ALIASES = {
   name: ['ten', 'name'],
   date: ['ngay', 'date'],
@@ -643,6 +645,12 @@ function setText(element, value) {
   }
 }
 
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 function initApp() {
   const elements = {
     toggleConfig: document.querySelector('#toggleConfig'),
@@ -828,32 +836,41 @@ function initApp() {
       }
 
       getOtpBtn.disabled = true;
-      getOtpBtn.textContent = 'Đang lấy...';
-      infoDiv.textContent = 'Đang kiểm tra hòm thư...';
+      getOtpBtn.textContent = 'Đang chờ...';
+      infoDiv.textContent = 'Đang chờ mã OTP...';
       infoDiv.style.color = 'var(--text-muted)';
       valueEl.value = '';
       copyBtn.style.display = 'none';
+      showStatus('Đang chờ mã OTP, hệ thống sẽ tự kiểm tra đến khi có mã.', 'info');
+
+      let pollCount = 0;
 
       try {
-        const otpData = await fetchOtpFromApi(row.recoveryEmail, scriptUrl);
-        if (otpData && otpData.code) {
-          valueEl.value = otpData.code;
-          copyBtn.style.display = 'flex';
-          infoDiv.innerHTML = `<span style="color:var(--green); font-weight: 500;">✓ Thư từ: ${escapeHtml(otpData.sender || 'Unknown')}</span>`;
-          await copyText(otpData.code, copyBtn);
-          showStatus(`Đã lấy và copy mã OTP: ${otpData.code}`, 'success');
-        } else {
-          infoDiv.textContent = 'Chưa có thư mới. Hãy gửi lại mã hoặc thử lại.';
-          infoDiv.style.color = 'var(--orange-dark)';
-          showStatus('Không tìm thấy email xác nhận mới trong hòm thư.', 'warn');
+        while (true) {
+          pollCount += 1;
+          getOtpBtn.textContent = `Lần ${pollCount}`;
+          infoDiv.textContent = `Đang kiểm tra inbox... lần ${pollCount}`;
+
+          const otpData = await fetchOtpFromApi(row.recoveryEmail, scriptUrl);
+          if (otpData && otpData.code) {
+            valueEl.value = otpData.code;
+            copyBtn.style.display = 'flex';
+            infoDiv.innerHTML = `<span style="color:var(--green); font-weight: 500;">Tìm thấy từ: ${escapeHtml(otpData.sender || 'Unknown')}</span>`;
+            await copyText(otpData.code, copyBtn);
+            showStatus(`Đã lấy và copy mã OTP: ${otpData.code}`, 'success');
+            break;
+          }
+
+          infoDiv.textContent = `Chưa có mã, tiếp tục chờ... lần ${pollCount}`;
+          await wait(OTP_POLL_INTERVAL_MS);
         }
       } catch (err) {
-        infoDiv.textContent = 'Không kết nối được hòm thư.';
+        infoDiv.textContent = 'Không kết nối được inbox.';
         infoDiv.style.color = 'var(--red)';
         showStatus(`Không lấy được mã: ${err.message}`, 'error');
       } finally {
         getOtpBtn.disabled = false;
-        getOtpBtn.textContent = 'Lấy lại';
+        getOtpBtn.textContent = valueEl.value ? 'Lấy lại' : 'Lấy mã';
       }
     });
 
