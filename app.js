@@ -880,6 +880,14 @@ function initApp() {
       copyText(valueEl.value, copyBtn);
     });
 
+    valueEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (valueEl.value) {
+        valueEl.select();
+        copyText(valueEl.value, copyBtn);
+      }
+    });
+
     return field;
   };
 
@@ -931,24 +939,6 @@ function initApp() {
       if (row.recoveryEmail) {
         const mailField = createCardField('✨ Mail khôi phục đã tạo', row.recoveryEmail);
         bodyDiv.appendChild(mailField);
-
-        const usernameField = createCardField(
-          '👤 Username khôi phục',
-          getRecoveryUsername(row.recoveryEmail),
-          true,
-          (newUsername) => {
-            const domain = row.recoveryEmail ? row.recoveryEmail.split('@')[1] : getRecoveryDomain(row.sourceIndex);
-            row.recoveryEmail = `${newUsername.trim()}@${domain}`;
-            row.recoveryEmailGenerated = true;
-            row.recoveryEmailSynced = false;
-
-            const mailValueEl = mailField.querySelector('.card-field-value');
-            if (mailValueEl) {
-              mailValueEl.textContent = row.recoveryEmail;
-            }
-          }
-        );
-        bodyDiv.appendChild(usernameField);
 
         if (!done) {
           bodyDiv.appendChild(createOtpField(row));
