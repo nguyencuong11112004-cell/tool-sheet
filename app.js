@@ -6,7 +6,7 @@ const RECOVERY_DOMAINS = [
 ];
 
 const OTP_POLL_INTERVAL_MS = 5000;
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyCH_4_6XtbeR1_VRXopO5Dposnv8t8EuieXGnBKB_GC-MfVvulfCWv0RCPJYDVi4jsuA/exec';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLamF9VMjIvABHdU4xtfzDyCj9Uzkfz9ZOyyxRaqKthTziF_hEeANNayGLHkqqsOUkQg/exec';
 
 const HEADER_ALIASES = {
   name: ['ten', 'name'],
