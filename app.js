@@ -662,6 +662,7 @@ function initApp() {
     loadSheet: document.querySelector('#loadSheet'),
     filterName: document.querySelector('#filterName'),
     filterStatus: document.querySelector('#filterStatus'),
+    filterLimit: document.querySelector('#filterLimit'),
     searchQuery: document.querySelector('#searchQuery'),
     displayedCount: document.querySelector('#displayedCount'),
     doneCount: document.querySelector('#doneCount'),
@@ -674,6 +675,7 @@ function initApp() {
 
   let allRows = [];
   let filteredRows = [];
+  let matchedCount = 0;
 
   const showStatus = (message, type = 'info') => {
     elements.status.textContent = message;
@@ -771,6 +773,98 @@ function initApp() {
     return field;
   };
 
+  const updateCardOtpDom = (row) => {
+    const card = elements.cardsGrid.querySelector(`.card[data-source-index="${row.sourceIndex}"]`);
+    if (!card) return;
+
+    const valueEl = card.querySelector('.otp-value-input');
+    const getOtpBtn = card.querySelector('.btn-fetch-otp');
+    const copyBtn = card.querySelector('.otp-copy-btn');
+    const infoDiv = card.querySelector('.otp-info-div');
+
+    if (valueEl) valueEl.value = row.otpCode || '';
+    if (getOtpBtn) {
+      if (row.isFetchingOtp) {
+        getOtpBtn.disabled = true;
+        getOtpBtn.textContent = `Lần ${row.otpPollCount || 1}`;
+      } else {
+        getOtpBtn.disabled = false;
+        getOtpBtn.textContent = row.otpCode ? 'Lấy lại' : 'Lấy mã';
+      }
+    }
+    if (copyBtn) {
+      copyBtn.style.display = row.otpCode ? 'flex' : 'none';
+    }
+    if (infoDiv) {
+      infoDiv.innerHTML = row.otpStatusText || '';
+      infoDiv.style.color = row.otpStatusColor || 'var(--text-muted)';
+    }
+  };
+
+  const startPollingOtp = async (row) => {
+    if (!row.recoveryEmail) {
+      showStatus('Chưa có email khôi phục!', 'warn');
+      return;
+    }
+
+    const scriptUrl = elements.scriptUrl.value.trim();
+    if (!scriptUrl) {
+      row.otpStatusText = 'Lỗi: Chưa cấu hình Apps Script Web App URL.';
+      row.otpStatusColor = 'var(--red)';
+      updateCardOtpDom(row);
+      showStatus('Vui lòng click "Đổi link Google Sheet" để điền Apps Script Web App URL.', 'error');
+      return;
+    }
+
+    if (row.isFetchingOtp) return;
+
+    row.isFetchingOtp = true;
+    row.otpPollCount = 0;
+    row.otpCode = '';
+    row.otpStatusText = 'Đang chờ mã OTP...';
+    row.otpStatusColor = 'var(--text-muted)';
+    updateCardOtpDom(row);
+    showStatus('Đang chờ mã OTP, hệ thống sẽ tự kiểm tra đến khi có mã.', 'info');
+
+    try {
+      while (row.isFetchingOtp) {
+        row.otpPollCount += 1;
+        row.otpStatusText = `Đang kiểm tra inbox... lần ${row.otpPollCount}`;
+        row.otpStatusColor = 'var(--text-muted)';
+        updateCardOtpDom(row);
+
+        const otpData = await fetchOtpFromApi(row.recoveryEmail, scriptUrl);
+        if (!row.isFetchingOtp) break;
+
+        if (otpData && otpData.code) {
+          row.otpCode = otpData.code;
+          row.otpStatusText = `<span style="color:var(--green); font-weight: 500;">Tìm thấy từ: ${escapeHtml(otpData.sender || 'Unknown')}</span>`;
+          row.otpStatusColor = 'var(--green)';
+          row.isFetchingOtp = false;
+          updateCardOtpDom(row);
+
+          // Copy to clipboard
+          const card = elements.cardsGrid.querySelector(`.card[data-source-index="${row.sourceIndex}"]`);
+          const copyBtn = card ? card.querySelector('.otp-copy-btn') : null;
+          await copyText(otpData.code, copyBtn);
+          showStatus(`Đã lấy và copy mã OTP: ${otpData.code}`, 'success');
+          break;
+        }
+
+        row.otpStatusText = `Chưa có mã, tiếp tục chờ... lần ${row.otpPollCount}`;
+        row.otpStatusColor = 'var(--text-muted)';
+        updateCardOtpDom(row);
+        await wait(OTP_POLL_INTERVAL_MS);
+      }
+    } catch (err) {
+      row.otpStatusText = 'Không kết nối được inbox.';
+      row.otpStatusColor = 'var(--red)';
+      row.isFetchingOtp = false;
+      updateCardOtpDom(row);
+      showStatus(`Không lấy được mã: ${err.message}`, 'error');
+    }
+  };
+
   const createOtpField = (row) => {
     const field = document.createElement('div');
     field.className = 'card-field';
@@ -784,25 +878,32 @@ function initApp() {
     rowDiv.className = 'card-field-row';
 
     const valueEl = document.createElement('input');
-    valueEl.className = 'card-field-value';
+    valueEl.className = 'card-field-value otp-value-input';
     valueEl.style.fontWeight = '700';
     valueEl.style.color = 'var(--blue)';
     valueEl.readOnly = true;
     valueEl.placeholder = 'Bấm nút "Lấy mã"';
+    valueEl.value = row.otpCode || '';
     rowDiv.appendChild(valueEl);
 
     const getOtpBtn = document.createElement('button');
     getOtpBtn.className = 'btn-fetch-otp';
     getOtpBtn.type = 'button';
     getOtpBtn.title = 'Lấy mã OTP';
-    getOtpBtn.textContent = 'Lấy mã';
+    if (row.isFetchingOtp) {
+      getOtpBtn.disabled = true;
+      getOtpBtn.textContent = `Lần ${row.otpPollCount || 1}`;
+    } else {
+      getOtpBtn.disabled = false;
+      getOtpBtn.textContent = row.otpCode ? 'Lấy lại' : 'Lấy mã';
+    }
     rowDiv.appendChild(getOtpBtn);
 
     const copyBtn = document.createElement('button');
-    copyBtn.className = 'btn-copy';
+    copyBtn.className = 'btn-copy otp-copy-btn';
     copyBtn.type = 'button';
     copyBtn.title = 'Copy';
-    copyBtn.style.display = 'none';
+    copyBtn.style.display = row.otpCode ? 'flex' : 'none';
     copyBtn.innerHTML = `
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
@@ -811,73 +912,35 @@ function initApp() {
     rowDiv.appendChild(copyBtn);
 
     const infoDiv = document.createElement('div');
+    infoDiv.className = 'otp-info-div';
     infoDiv.style.fontSize = '11px';
-    infoDiv.style.color = 'var(--text-muted)';
     infoDiv.style.marginTop = '4px';
     infoDiv.style.minHeight = '16px';
+    if (row.otpStatusText) {
+      infoDiv.innerHTML = row.otpStatusText;
+      infoDiv.style.color = row.otpStatusColor || 'var(--text-muted)';
+    } else {
+      infoDiv.style.color = 'var(--text-muted)';
+    }
     field.appendChild(rowDiv);
     field.appendChild(infoDiv);
 
-    getOtpBtn.addEventListener('click', async (e) => {
+    getOtpBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (!row.recoveryEmail) {
-        showStatus('Chưa có email khôi phục!', 'warn');
-        return;
-      }
-
-      const scriptUrl = elements.scriptUrl.value.trim();
-      console.log("Current Apps Script URL in use:", scriptUrl);
-
-      if (!scriptUrl) {
-        infoDiv.textContent = 'Lỗi: Chưa cấu hình Apps Script Web App URL.';
-        infoDiv.style.color = 'var(--red)';
-        showStatus('Vui lòng click "Đổi link Google Sheet" để điền Apps Script Web App URL.', 'error');
-        getOtpBtn.textContent = 'Lấy mã';
-        return;
-      }
-
-      getOtpBtn.disabled = true;
-      getOtpBtn.textContent = 'Đang chờ...';
-      infoDiv.textContent = 'Đang chờ mã OTP...';
-      infoDiv.style.color = 'var(--text-muted)';
-      valueEl.value = '';
-      copyBtn.style.display = 'none';
-      showStatus('Đang chờ mã OTP, hệ thống sẽ tự kiểm tra đến khi có mã.', 'info');
-
-      let pollCount = 0;
-
-      try {
-        while (true) {
-          pollCount += 1;
-          getOtpBtn.textContent = `Lần ${pollCount}`;
-          infoDiv.textContent = `Đang kiểm tra inbox... lần ${pollCount}`;
-
-          const otpData = await fetchOtpFromApi(row.recoveryEmail, scriptUrl);
-          if (otpData && otpData.code) {
-            valueEl.value = otpData.code;
-            copyBtn.style.display = 'flex';
-            infoDiv.innerHTML = `<span style="color:var(--green); font-weight: 500;">Tìm thấy từ: ${escapeHtml(otpData.sender || 'Unknown')}</span>`;
-            await copyText(otpData.code, copyBtn);
-            showStatus(`Đã lấy và copy mã OTP: ${otpData.code}`, 'success');
-            break;
-          }
-
-          infoDiv.textContent = `Chưa có mã, tiếp tục chờ... lần ${pollCount}`;
-          await wait(OTP_POLL_INTERVAL_MS);
-        }
-      } catch (err) {
-        infoDiv.textContent = 'Không kết nối được inbox.';
-        infoDiv.style.color = 'var(--red)';
-        showStatus(`Không lấy được mã: ${err.message}`, 'error');
-      } finally {
-        getOtpBtn.disabled = false;
-        getOtpBtn.textContent = valueEl.value ? 'Lấy lại' : 'Lấy mã';
-      }
+      startPollingOtp(row);
     });
 
     copyBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       copyText(valueEl.value, copyBtn);
+    });
+
+    valueEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (valueEl.value) {
+        valueEl.select();
+        copyText(valueEl.value, copyBtn);
+      }
     });
 
     return field;
@@ -900,6 +963,7 @@ function initApp() {
 
     filteredRows.forEach((row) => {
       const card = document.createElement('article');
+      card.setAttribute('data-source-index', row.sourceIndex);
       const done = isRowDone(row);
       card.className = `card ${done ? 'done' : 'doing'}`;
 
@@ -931,24 +995,6 @@ function initApp() {
       if (row.recoveryEmail) {
         const mailField = createCardField('✨ Mail khôi phục đã tạo', row.recoveryEmail);
         bodyDiv.appendChild(mailField);
-
-        const usernameField = createCardField(
-          '👤 Username khôi phục',
-          getRecoveryUsername(row.recoveryEmail),
-          true,
-          (newUsername) => {
-            const domain = row.recoveryEmail ? row.recoveryEmail.split('@')[1] : getRecoveryDomain(row.sourceIndex);
-            row.recoveryEmail = `${newUsername.trim()}@${domain}`;
-            row.recoveryEmailGenerated = true;
-            row.recoveryEmailSynced = false;
-
-            const mailValueEl = mailField.querySelector('.card-field-value');
-            if (mailValueEl) {
-              mailValueEl.textContent = row.recoveryEmail;
-            }
-          }
-        );
-        bodyDiv.appendChild(usernameField);
 
         if (!done) {
           bodyDiv.appendChild(createOtpField(row));
@@ -1051,7 +1097,7 @@ function initApp() {
   };
 
   const updateStats = () => {
-    elements.displayedCount.textContent = `${filteredRows.length} / ${allRows.length}`;
+    elements.displayedCount.textContent = `${filteredRows.length} / ${matchedCount}`;
     const done = allRows.filter(isRowDone).length;
     const doing = allRows.length - done;
     elements.doneCount.textContent = done;
@@ -1062,25 +1108,35 @@ function initApp() {
     const selectedName = elements.filterName.value;
     const selectedStatus = elements.filterStatus.value;
     const query = normalizeText(elements.searchQuery.value);
+    const selectedLimit = elements.filterLimit.value;
 
-    filteredRows = allRows;
+    let tempRows = allRows;
 
     if (selectedName !== 'all') {
-      filteredRows = filteredRows.filter(row => row.name === selectedName);
+      tempRows = tempRows.filter(row => row.name === selectedName);
     }
 
     if (selectedStatus === 'doing') {
-      filteredRows = filteredRows.filter(row => !isRowDone(row));
+      tempRows = tempRows.filter(row => !isRowDone(row));
     } else if (selectedStatus === 'done') {
-      filteredRows = filteredRows.filter(row => isRowDone(row));
+      tempRows = tempRows.filter(row => isRowDone(row));
     }
 
     if (query) {
-      filteredRows = filteredRows.filter(row =>
+      tempRows = tempRows.filter(row =>
         normalizeText(row.name).includes(query) ||
         normalizeText(row.email).includes(query) ||
         (row.recoveryEmail && normalizeText(row.recoveryEmail).includes(query))
       );
+    }
+
+    matchedCount = tempRows.length;
+
+    if (selectedLimit !== 'all') {
+      const limit = parseInt(selectedLimit, 10);
+      filteredRows = tempRows.slice(0, limit);
+    } else {
+      filteredRows = tempRows;
     }
 
     updateStats();
@@ -1148,11 +1204,17 @@ function initApp() {
   // Load configuration from LocalStorage
   const savedSheetUrl = localStorage.getItem('sheetUrl');
   const savedWebmailUrl = localStorage.getItem('webmailUrl');
+  const savedFilterLimit = localStorage.getItem('filterLimit');
 
   if (savedSheetUrl) elements.sheetUrl.value = savedSheetUrl;
   elements.scriptUrl.value = DEFAULT_SCRIPT_URL;
   localStorage.setItem('scriptUrl', DEFAULT_SCRIPT_URL);
   if (savedWebmailUrl) elements.webmailUrl.value = savedWebmailUrl;
+  if (savedFilterLimit) {
+    elements.filterLimit.value = savedFilterLimit;
+  } else {
+    elements.filterLimit.value = '3';
+  }
 
   // Load Sheet click handler
   elements.loadSheet.addEventListener('click', () => {
@@ -1176,6 +1238,10 @@ function initApp() {
   // Filters event listeners
   elements.filterName.addEventListener('change', applySearchAndFilter);
   elements.filterStatus.addEventListener('change', applySearchAndFilter);
+  elements.filterLimit.addEventListener('change', () => {
+    localStorage.setItem('filterLimit', elements.filterLimit.value);
+    applySearchAndFilter();
+  });
   elements.searchQuery.addEventListener('input', applySearchAndFilter);
 
   // Auto-load if sheetUrl was saved
