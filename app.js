@@ -267,6 +267,81 @@ async function fetchGetnadaDirect(email) {
   return null;
 }
 
+export function buildAppsScriptOtpUrl(scriptUrl, email, callbackName) {
+  const url = new URL(String(scriptUrl || '').trim());
+
+  url.searchParams.set('action', 'get_otp');
+  url.searchParams.set('email', email);
+  url.searchParams.set('callback', callbackName);
+  url.searchParams.set('cacheBust', Date.now());
+
+  return url.toString();
+}
+
+function normalizeOtpResult(result) {
+  if (!result.ok) {
+    if (result.error === 'Invalid rowNumber.') {
+      throw new Error('Please deploy a new Google Apps Script version (New Deployment).');
+    }
+    throw new Error(result.error || 'Apps Script error');
+  }
+
+  if (result.html) {
+    return {
+      code: extractOtpCode(result.html),
+      sender: result.sender,
+      subject: result.subject
+    };
+  }
+
+  return null;
+}
+
+function fetchGetnadaViaAppsScriptJsonp(scriptUrl, email) {
+  if (typeof document === 'undefined') {
+    return fetchGetnadaViaAppsScript(scriptUrl, email);
+  }
+
+  return new Promise((resolve, reject) => {
+    const callbackName = `inboxesOtpCallback_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const script = document.createElement('script');
+    let timeoutId;
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      script.remove();
+      delete window[callbackName];
+    };
+
+    window[callbackName] = (result) => {
+      try {
+        cleanup();
+        resolve(normalizeOtpResult(result || {}));
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error('Cannot load Apps Script proxy. Check the Web App URL and deploy a new version.'));
+    };
+
+    timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error('Apps Script proxy timed out.'));
+    }, 20000);
+
+    try {
+      script.src = buildAppsScriptOtpUrl(scriptUrl, email, callbackName);
+      document.head.append(script);
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
+  });
+}
+
 async function fetchGetnadaViaAppsScript(scriptUrl, email) {
   const response = await fetch(scriptUrl, {
     method: 'POST',
@@ -342,6 +417,22 @@ async function fetchGetnadaViaAllOrigins(email) {
 
 export async function fetchOtpFromApi(email, scriptUrl = '') {
   const errors = [];
+
+  if (scriptUrl) {
+    try {
+      return await fetchGetnadaViaAppsScriptJsonp(scriptUrl, email);
+    } catch (err) {
+      console.warn("Apps Script proxy failed:", err);
+      errors.push(`Apps Script Proxy: ${err.message}`);
+      if (err.message.includes('New Deployment')) {
+        throw err;
+      }
+    }
+  } else {
+    errors.push("Apps Script Proxy: URL trá»‘ng");
+  }
+
+  throw new Error(errors.join(' | ') || 'Apps Script proxy failed.');
 
   // Level 1: Direct Fetch
   try {

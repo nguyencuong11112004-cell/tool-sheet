@@ -7,6 +7,40 @@ const RECOVERY_HEADER_ALIASES = [
   'recoveryemail'
 ];
 
+function doGet(e) {
+  try {
+    const params = e.parameter || {};
+
+    if (params.action !== 'get_otp') {
+      throw new Error('Unsupported action.');
+    }
+
+    const callback = String(params.callback || '').trim();
+    const email = String(params.email || '').trim();
+    if (!callback) {
+      throw new Error('Missing callback for JSONP request.');
+    }
+    if (!/^[A-Za-z_$][0-9A-Za-z_$]*$/.test(callback)) {
+      throw new Error('Invalid callback name.');
+    }
+
+    return jsonpResponse(callback, getOtpPayload(email));
+  } catch (error) {
+    const callback = String((e.parameter || {}).callback || '').trim();
+    if (/^[A-Za-z_$][0-9A-Za-z_$]*$/.test(callback)) {
+      return jsonpResponse(callback, {
+        ok: false,
+        error: error.message
+      });
+    }
+
+    return jsonResponse({
+      ok: false,
+      error: error.message
+    });
+  }
+}
+
 function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents || '{}');
@@ -18,38 +52,7 @@ function doPost(e) {
         throw new Error('Missing email for get_otp action.');
       }
 
-      const response = UrlFetchApp.fetch('https://inboxes.com/api/v2/inbox/' + email, {
-        muteHttpExceptions: true
-      });
-
-      if (response.getResponseCode() !== 200) {
-        throw new Error('Inboxes inbox request failed with status: ' + response.getResponseCode());
-      }
-
-      const data = JSON.parse(response.getContentText());
-      if (data.msgs && data.msgs.length > 0) {
-        const latestMsg = data.msgs[0];
-        const msgResponse = UrlFetchApp.fetch('https://inboxes.com/api/v2/message/' + latestMsg.uid, {
-          muteHttpExceptions: true
-        });
-
-        if (msgResponse.getResponseCode() !== 200) {
-          throw new Error('Inboxes message content request failed with status: ' + msgResponse.getResponseCode());
-        }
-
-        const msgData = JSON.parse(msgResponse.getContentText());
-        return jsonResponse({
-          ok: true,
-          sender: latestMsg.f || msgData.from || '',
-          subject: latestMsg.s || msgData.subject || '',
-          html: msgData.html || msgData.text || ''
-        });
-      } else {
-        return jsonResponse({
-          ok: true,
-          msgs: []
-        });
-      }
+      return jsonResponse(getOtpPayload(email));
     }
 
     const rowNumber = Number(payload.rowNumber);
@@ -141,6 +144,45 @@ function findRecoveryColumn(sheet) {
   return index + 1;
 }
 
+function getOtpPayload(email) {
+  if (!email) {
+    throw new Error('Missing email for get_otp action.');
+  }
+
+  const response = UrlFetchApp.fetch('https://inboxes.com/api/v2/inbox/' + encodeURIComponent(email), {
+    muteHttpExceptions: true
+  });
+
+  if (response.getResponseCode() !== 200) {
+    throw new Error('Inboxes inbox request failed with status: ' + response.getResponseCode());
+  }
+
+  const data = JSON.parse(response.getContentText());
+  if (!data.msgs || data.msgs.length === 0) {
+    return {
+      ok: true,
+      msgs: []
+    };
+  }
+
+  const latestMsg = data.msgs[0];
+  const msgResponse = UrlFetchApp.fetch('https://inboxes.com/api/v2/message/' + encodeURIComponent(latestMsg.uid), {
+    muteHttpExceptions: true
+  });
+
+  if (msgResponse.getResponseCode() !== 200) {
+    throw new Error('Inboxes message content request failed with status: ' + msgResponse.getResponseCode());
+  }
+
+  const msgData = JSON.parse(msgResponse.getContentText());
+  return {
+    ok: true,
+    sender: latestMsg.f || msgData.from || '',
+    subject: latestMsg.s || msgData.subject || '',
+    html: msgData.html || msgData.text || ''
+  };
+}
+
 function normalizeText(value) {
   return String(value || '')
     .normalize('NFD')
@@ -158,6 +200,12 @@ function jsonResponse(data) {
 }
 
 // Hàm chạy thủ công một lần để kích hoạt quyền gọi API ngoài (UrlFetchApp.fetch)
+function jsonpResponse(callback, data) {
+  return ContentService
+    .createTextOutput(callback + '(' + JSON.stringify(data) + ');')
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+
 function authorize() {
   UrlFetchApp.fetch("https://inboxes.com/api/v2/domain");
   Logger.log("Cấp quyền thành công!");

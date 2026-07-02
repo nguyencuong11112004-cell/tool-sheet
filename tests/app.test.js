@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   addRecoveryEmailIfMissing,
   buildSheetUpdatePayload,
+  buildAppsScriptOtpUrl,
   createRecoveryEmail,
   ensureRecoveryEmail,
   filterByEmail,
@@ -47,6 +48,26 @@ test('converts a public Google Sheet edit link to gviz jsonp url', () => {
     url,
     'https://docs.google.com/spreadsheets/d/abc123/gviz/tq?tqx=responseHandler:cb&gid=987'
   );
+});
+
+test('builds an Apps Script JSONP URL for inboxes OTP lookup', () => {
+  const originalNow = Date.now;
+  Date.now = () => 12345;
+
+  try {
+    const url = buildAppsScriptOtpUrl(
+      'https://script.google.com/macros/s/deployment/exec',
+      'alpha+test@clowmail.com',
+      'otpCallback'
+    );
+
+    assert.equal(
+      url,
+      'https://script.google.com/macros/s/deployment/exec?action=get_otp&email=alpha%2Btest%40clowmail.com&callback=otpCallback&cacheBust=12345'
+    );
+  } finally {
+    Date.now = originalNow;
+  }
 });
 
 test('parses quoted csv cells and maps Vietnamese headers', () => {
